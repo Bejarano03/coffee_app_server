@@ -20,10 +20,10 @@ export class AuthService {
       data: {
         email,
         password: hashedPassword,
-        firstName: '',
-        lastName: '',
+        firstName,
+        lastName,
         birthDate: dateOfBirth,
-        phone: '',
+        phone,
       },
     });
 
