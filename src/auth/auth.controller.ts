@@ -9,6 +9,7 @@ export class AuthController {
     @Post('register')
     async register(@Body() registerDto: RegisterDto) {
         // Handles hashing and saving
+        console.log(registerDto);
         return this.authService.register(
             registerDto.email,
             registerDto.password,

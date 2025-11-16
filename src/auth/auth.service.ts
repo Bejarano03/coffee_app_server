@@ -6,10 +6,20 @@ import { User } from '../../generated/prisma/';
 
 @Injectable()
 export class AuthService {
-  constructor(private prisma: PrismaService, private jwtService: JwtService) {}
+  constructor(
+    private prisma: PrismaService,
+    private jwtService: JwtService,
+  ) {}
   private readonly HASH_SALT_ROUNDS = 10; // How much computation is needed
 
-  async register(email: string, pass: string, firstName: string, lastName: string, birthDate: string, phone: string): Promise<any> {
+  async register(
+    email: string,
+    pass: string,
+    firstName: string,
+    lastName: string,
+    birthDate: string,
+    phone: string,
+  ): Promise<any> {
     // Hash password
     const hashedPassword = await bcrypt.hash(pass, this.HASH_SALT_ROUNDS);
 
@@ -27,9 +37,18 @@ export class AuthService {
       },
     });
 
+    const payload = { email: user.email, sub: user.id };
+    const access_token = this.jwtService.sign(payload);
+
+    return {
+      access_token,
+      email: user.email,
+      sub: user.id
+    };
+
     // Return the user
-    const { password, ...result } = user;
-    return result;
+    // const { password, ...result } = user;
+    // return result;
   }
 
   // change to custom type later
@@ -49,6 +68,6 @@ export class AuthService {
 
     return {
       access_token: this.jwtService.sign(payload),
-    }
+    };
   }
 }
