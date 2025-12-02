@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service'; // Assuming path to your shared Prisma service
-import { UpdateProfileDto } from './dto/profile.dto'; // Assuming path to your DTO
+import { PrismaService } from '../prisma/prisma.service';
+import { UpdateProfileDto } from './dto/profile.dto';
+import { formatBirthDateForClient, parseBirthDateInput, requireTenDigitPhone } from '../utils/formatters';
 
 @Injectable()
 export class ProfileService {
@@ -24,10 +25,10 @@ export class ProfileService {
       throw new NotFoundException(`User with ID ${userId} not found.`);
     }
     
-    // Format Date object to YYYY-MM-DD string for consistency with frontend expectations
+    // Format Date object to MM-DD-YYYY string for consistency with frontend expectations
     return {
-        ...user,
-        birthDate: user.birthDate ? user.birthDate.toISOString().split('T')[0] : null,
+      ...user,
+      birthDate: formatBirthDateForClient(user.birthDate),
     };
   }
 
@@ -35,9 +36,12 @@ export class ProfileService {
   async updateProfile(userId: number, data: UpdateProfileDto) {
     const updateData: any = { ...data };
 
-    // Convert birthDate string back to a Date object if present before saving to DB
     if (data.birthDate) {
-      updateData.birthDate = new Date(data.birthDate);
+      updateData.birthDate = parseBirthDateInput(data.birthDate);
+    }
+
+    if (data.phone) {
+      updateData.phone = requireTenDigitPhone(data.phone);
     }
     
     const updatedUser = await this.prisma.user.update({
@@ -55,8 +59,8 @@ export class ProfileService {
     
     // Return formatted data
     return {
-        ...updatedUser,
-        birthDate: updatedUser.birthDate ? updatedUser.birthDate.toISOString().split('T')[0] : null,
+      ...updatedUser,
+      birthDate: formatBirthDateForClient(updatedUser.birthDate),
     };
   }
 }

@@ -34,18 +34,18 @@ export class CartController {
     return this.cartService.addItem(user.id, dto);
   }
 
-  @Patch('items/:menuItemId')
+  @Patch('items/:cartItemId')
   updateItem(
     @User() user: AuthenticatedUser,
-    @Param('menuItemId', ParseIntPipe) menuItemId: number,
+    @Param('cartItemId', ParseIntPipe) cartItemId: number,
     @Body() dto: UpdateCartItemDto,
   ) {
-    return this.cartService.updateQuantity(user.id, menuItemId, dto);
+    return this.cartService.updateQuantity(user.id, cartItemId, dto);
   }
 
-  @Delete('items/:menuItemId')
-  removeItem(@User() user: AuthenticatedUser, @Param('menuItemId', ParseIntPipe) menuItemId: number) {
-    return this.cartService.removeItem(user.id, menuItemId);
+  @Delete('items/:cartItemId')
+  removeItem(@User() user: AuthenticatedUser, @Param('cartItemId', ParseIntPipe) cartItemId: number) {
+    return this.cartService.removeItem(user.id, cartItemId);
   }
 
   @Delete()

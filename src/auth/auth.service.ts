@@ -2,6 +2,7 @@ import * as bcrypt from 'bcrypt';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
+import { parseBirthDateInput, requireTenDigitPhone } from '../utils/formatters';
 
 @Injectable()
 export class AuthService {
@@ -22,7 +23,8 @@ export class AuthService {
     // Hash password
     const hashedPassword = await bcrypt.hash(pass, this.HASH_SALT_ROUNDS);
 
-    const dateOfBirth = new Date(birthDate);
+    const dateOfBirth = parseBirthDateInput(birthDate);
+    const normalizedPhone = requireTenDigitPhone(phone);
 
     // Create user in database
     const user = await this.prisma.user.create({
@@ -32,7 +34,7 @@ export class AuthService {
         firstName,
         lastName,
         birthDate: dateOfBirth,
-        phone,
+        phone: normalizedPhone,
       },
     });
 

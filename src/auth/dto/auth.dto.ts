@@ -1,4 +1,5 @@
-import { IsEmail, IsNotEmpty, IsString, MinLength } from "class-validator";
+import { IsEmail, IsNotEmpty, IsString, Matches, MinLength } from "class-validator";
+import { FLEXIBLE_BIRTHDATE_REGEX } from "../../utils/formatters";
 
 export class LoginDto {
     @IsEmail()
@@ -22,6 +23,7 @@ export class RegisterDto extends LoginDto {
 
     @IsString()
     @IsNotEmpty()
+    @Matches(FLEXIBLE_BIRTHDATE_REGEX, { message: 'Birth date must follow MM-DD-YYYY.' })
     birthDate: string;
 
     // Should add more validation for date/phone later

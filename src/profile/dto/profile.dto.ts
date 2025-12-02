@@ -1,4 +1,5 @@
-import { IsOptional, IsString, IsDateString } from 'class-validator';
+import { IsOptional, IsString, Matches } from 'class-validator';
+import { FLEXIBLE_BIRTHDATE_REGEX } from '../../utils/formatters';
 
 // This DTO defines the structure for the PATCH /profile request body
 export class UpdateProfileDto {
@@ -10,9 +11,8 @@ export class UpdateProfileDto {
   @IsString()
   lastName?: string;
 
-  // Use IsDateString to validate that the input is a valid date format string (e.g., YYYY-MM-DD)
   @IsOptional()
-  @IsDateString()
+  @Matches(FLEXIBLE_BIRTHDATE_REGEX, { message: 'Birth date must follow MM-DD-YYYY.' })
   birthDate?: string;
 
   @IsOptional()

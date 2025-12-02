@@ -7,9 +7,10 @@ import { UserModule } from './user/user.module';
 import { ProfileModule } from './profile/profile.module';
 import { MenuModule } from './menu.module';
 import { CartModule } from './cart.module';
+import { RewardsModule } from './rewards/rewards.module';
 
 @Module({
-  imports: [PrismaModule, UserModule, AuthModule, ProfileModule, MenuModule, CartModule],
+  imports: [PrismaModule, UserModule, AuthModule, ProfileModule, MenuModule, CartModule, RewardsModule],
   controllers: [AppController],
   providers: [AppService],
 })
