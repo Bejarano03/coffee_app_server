@@ -6,7 +6,6 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../generated/prisma"
 }
 
 datasource db {
@@ -15,11 +14,46 @@ datasource db {
 }
 
 model User {
-  id    Int     @default(autoincrement()) @id
-  email String  @unique
-  password String
-  firstName  String
-  lastName String
+  id        Int        @id @default(autoincrement())
+  email     String     @unique
+  password  String
+  firstName String
+  lastName  String
   birthDate DateTime
-  phone String
+  phone     String
+  cartItems CartItem[]
+}
+
+model MenuItem {
+  id          Int           @id @default(autoincrement())
+  name        String
+  description String
+  price       Decimal       @db.Decimal(10, 2)
+  category    MenuCategory
+  imageKey    String
+  tags        String[]      @default([])
+  isAvailable Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  cartItems   CartItem[]
+}
+
+model CartItem {
+  id         Int       @id @default(autoincrement())
+  userId     Int
+  menuItemId Int
+  quantity   Int       @default(1)
+  notes      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id])
+
+  @@unique([userId, menuItemId])
+}
+
+enum MenuCategory {
+  COFFEE
+  PASTRY
 }
