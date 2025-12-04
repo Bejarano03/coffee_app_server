@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { User } from '../auth/decorator/user.decorator';
 import { Request } from 'express';
 import { CreateGiftCardReloadIntentDto } from './dto/create-gift-card-intent.dto';
+import { CompleteCardPaymentDto } from './dto/complete-card-payment.dto';
 
 interface AuthenticatedUser {
   id: number;
@@ -18,6 +19,27 @@ export class PaymentsController {
   @Post('create-intent')
   createIntent(@User() user: AuthenticatedUser) {
     return this.paymentsService.createCheckoutIntent(user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('pay-with-gift-card')
+  payWithGiftCard(@User() user: AuthenticatedUser) {
+    return this.paymentsService.payWithGiftCard(user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('free-order')
+  completeFreeOrder(@User() user: AuthenticatedUser) {
+    return this.paymentsService.completeFreeOrder(user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('complete-card-payment')
+  completeCardPayment(
+    @User() user: AuthenticatedUser,
+    @Body() dto: CompleteCardPaymentDto,
+  ) {
+    return this.paymentsService.completeCardPayment(user.id, dto.paymentIntentId);
   }
 
   @UseGuards(JwtAuthGuard)

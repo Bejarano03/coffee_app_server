@@ -146,6 +146,44 @@ export class RewardsService {
     });
   }
 
+  async redeemFreeDrinks(userId: number, drinksRedeemed: number) {
+    if (drinksRedeemed <= 0) {
+      return;
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({
+        where: { id: userId },
+        select: { freeCoffeeCredits: true },
+      });
+
+      if (!user) {
+        throw new NotFoundException(`User ${userId} not found`);
+      }
+
+      const redeemable = Math.min(drinksRedeemed, user.freeCoffeeCredits);
+      if (redeemable <= 0) {
+        return;
+      }
+
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          freeCoffeeCredits: { decrement: redeemable },
+        },
+      });
+
+      await tx.rewardTransaction.create({
+        data: {
+          userId,
+          points: 0,
+          reason: `Redeemed ${redeemable} free coffee${redeemable === 1 ? '' : 's'}.`,
+          type: RewardTransactionType.REDEEM,
+        },
+      });
+    });
+  }
+
   private buildTierInfo(pointsTowardsNext: number, freeCoffeeCredits: number) {
     const hasFreeCoffeeReady = freeCoffeeCredits > 0;
     const percentToNext = hasFreeCoffeeReady

@@ -1,8 +1,9 @@
-import { BadRequestException, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import Stripe from 'stripe';
 import { CartService } from '../cart.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { OrderStatus } from '@prisma/client';
+import { GiftCardTransactionType, OrderStatus, Prisma } from '@prisma/client';
+import { RewardsService } from '../rewards/rewards.service';
 
 @Injectable()
 export class PaymentsService {
@@ -12,6 +13,7 @@ export class PaymentsService {
   constructor(
     private readonly cartService: CartService,
     private readonly prisma: PrismaService,
+    private readonly rewardsService: RewardsService,
   ) {
     const apiKey = process.env.STRIPE_SECRET_KEY;
     if (!apiKey) {
@@ -33,11 +35,21 @@ export class PaymentsService {
       throw new BadRequestException('Your cart is empty.');
     }
 
-    const amount = cartItems.reduce((total, line) => {
-      const price = Number(line.menuItem.price ?? 0);
-      const unitCents = Math.round(price * 100);
-      return total + unitCents * line.quantity;
-    }, 0);
+    const amount = this.calculateCartTotal(cartItems);
+    const freeDrinksRedeemed = this.countFreeDrinks(cartItems);
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { freeCoffeeCredits: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User ${userId} not found`);
+    }
+
+    if (freeDrinksRedeemed > user.freeCoffeeCredits) {
+      throw new BadRequestException('Not enough free drinks available to redeem.');
+    }
 
     if (amount <= 0) {
       throw new BadRequestException('Cart total must be greater than zero.');
@@ -57,10 +69,11 @@ export class PaymentsService {
         throw new InternalServerErrorException('Failed to create payment intent.');
       }
 
-      await this.createPendingOrder(userId, intent, cartItems, amount);
+      await this.createPendingOrder(userId, intent, cartItems, amount, freeDrinksRedeemed);
 
       return {
         clientSecret: intent.client_secret,
+        paymentIntentId: intent.id,
         amount,
         currency: intent.currency,
       };
@@ -105,6 +118,183 @@ export class PaymentsService {
     }
   }
 
+  async payWithGiftCard(userId: number) {
+    const cartItems = await this.cartService.getCartForUser(userId);
+
+    if (!cartItems.length) {
+      throw new BadRequestException('Your cart is empty.');
+    }
+
+    const amountCents = this.calculateCartTotal(cartItems);
+    const freeDrinksRedeemed = this.countFreeDrinks(cartItems);
+
+    if (amountCents <= 0) {
+      throw new BadRequestException('Cart total must be greater than zero.');
+    }
+
+    const { orderId, remainingBalanceCents } = await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({
+        where: { id: userId },
+        select: { giftCardBalance: true, freeCoffeeCredits: true },
+      });
+
+      if (!user) {
+        throw new NotFoundException(`User ${userId} not found`);
+      }
+
+      const balanceCents = Math.round(Number(user.giftCardBalance) * 100);
+
+      if (balanceCents < amountCents) {
+        throw new BadRequestException('Insufficient gift card balance to cover this order.');
+      }
+
+      if (freeDrinksRedeemed > user.freeCoffeeCredits) {
+        throw new BadRequestException('Not enough free drinks available to redeem.');
+      }
+
+      const amountDecimal = new Prisma.Decimal((amountCents / 100).toFixed(2));
+      const paymentIntentId = `gift-card-${userId}-${Date.now()}`;
+
+      const order = await tx.order.create({
+        data: {
+          userId,
+          paymentIntentId,
+          status: OrderStatus.PAID,
+          amountCents,
+          currency: 'usd',
+          items: {
+            create: this.buildOrderItemsFromCart(cartItems),
+          },
+          freeDrinksRedeemed,
+        },
+        select: { id: true },
+      });
+
+      const updatedUser = await tx.user.update({
+        where: { id: userId },
+        data: {
+          giftCardBalance: { decrement: amountDecimal },
+        },
+        select: { giftCardBalance: true },
+      });
+
+      await tx.giftCardTransaction.create({
+        data: {
+          userId,
+          amount: amountDecimal,
+          type: GiftCardTransactionType.PURCHASE,
+          note: `Order #${order.id} in-app purchase`,
+        },
+      });
+
+      return {
+        orderId: order.id,
+        remainingBalanceCents: Math.max(0, Math.round(Number(updatedUser.giftCardBalance) * 100)),
+      };
+    });
+
+    await this.cartService.clearCart(userId);
+    await this.rewardsService.redeemFreeDrinks(userId, freeDrinksRedeemed);
+
+    return {
+      orderId,
+      amountCents,
+      remainingBalanceCents,
+      currency: 'usd',
+    };
+  }
+
+  async completeCardPayment(userId: number, paymentIntentId: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { paymentIntentId },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found for payment intent.');
+    }
+
+    if (order.userId !== userId) {
+      throw new BadRequestException('This order does not belong to the current user.');
+    }
+
+    if (order.status === OrderStatus.PAID) {
+      return {
+        orderId: order.id,
+        amountCents: order.amountCents,
+        currency: order.currency,
+      };
+    }
+
+    await this.prisma.order.update({
+      where: { id: order.id },
+      data: { status: OrderStatus.PAID },
+    });
+
+    await this.rewardsService.redeemFreeDrinks(order.userId, order.freeDrinksRedeemed);
+
+    return {
+      orderId: order.id,
+      amountCents: order.amountCents,
+      currency: order.currency,
+    };
+  }
+
+  async completeFreeOrder(userId: number) {
+    const cartItems = await this.cartService.getCartForUser(userId);
+
+    if (!cartItems.length) {
+      throw new BadRequestException('Your cart is empty.');
+    }
+
+    const amountCents = this.calculateCartTotal(cartItems);
+    const freeDrinksRedeemed = this.countFreeDrinks(cartItems);
+
+    if (amountCents !== 0) {
+      throw new BadRequestException('Free checkout is only available when your order total is $0.');
+    }
+
+    if (freeDrinksRedeemed <= 0) {
+      throw new BadRequestException('Add a free drink redemption before completing a free order.');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { freeCoffeeCredits: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User ${userId} not found`);
+    }
+
+    if (freeDrinksRedeemed > user.freeCoffeeCredits) {
+      throw new BadRequestException('Not enough free drinks available to redeem.');
+    }
+
+    const order = await this.prisma.order.create({
+      data: {
+        userId,
+        paymentIntentId: `free-order-${userId}-${Date.now()}`,
+        status: OrderStatus.PAID,
+        amountCents: 0,
+        currency: 'usd',
+        items: {
+          create: this.buildOrderItemsFromCart(cartItems),
+        },
+        freeDrinksRedeemed,
+      },
+      select: { id: true },
+    });
+
+    await this.cartService.clearCart(userId);
+    await this.rewardsService.redeemFreeDrinks(userId, freeDrinksRedeemed);
+
+    return {
+      orderId: order.id,
+      amountCents: 0,
+      currency: 'usd',
+    };
+  }
+
   private assertStripe(): Stripe {
     if (!this.stripe) {
       throw new InternalServerErrorException('Stripe is not configured on the server.');
@@ -118,6 +308,7 @@ export class PaymentsService {
     intent: Stripe.PaymentIntent,
     cartItems: Awaited<ReturnType<CartService['getCartForUser']>>,
     amount: number,
+    freeDrinksRedeemed: number,
   ) {
     try {
       await this.prisma.order.create({
@@ -127,17 +318,9 @@ export class PaymentsService {
           amountCents: amount,
           currency: intent.currency ?? 'usd',
           items: {
-            create: cartItems.map((line) => ({
-              menuItemId: line.menuItemId,
-              name: line.menuItem.name,
-              unitPriceCents: Math.round(Number(line.menuItem.price ?? 0) * 100),
-              quantity: line.quantity,
-              milkOption: line.menuItem.category === 'COFFEE' ? line.milkOption : null,
-              espressoShots: line.menuItem.category === 'COFFEE' ? line.espressoShots : null,
-              flavorName: line.menuItem.category === 'COFFEE' ? line.flavorName : null,
-              flavorPumps: line.menuItem.category === 'COFFEE' ? line.flavorPumps : null,
-            })),
+            create: this.buildOrderItemsFromCart(cartItems),
           },
+          freeDrinksRedeemed,
         },
       });
     } catch (error) {
@@ -199,9 +382,53 @@ export class PaymentsService {
       return;
     }
 
+    if (order.status === status) {
+      return;
+    }
+
     await this.prisma.order.update({
       where: { id: order.id },
       data: { status },
     });
+
+    if (status === OrderStatus.PAID) {
+      await this.rewardsService.redeemFreeDrinks(order.userId, order.freeDrinksRedeemed);
+    }
+  }
+
+  private calculateCartTotal(cartItems: Awaited<ReturnType<CartService['getCartForUser']>>) {
+    return cartItems.reduce((total, line) => {
+      if (line.isFreeDrink) {
+        return total;
+      }
+      const price = Number(line.menuItem.price ?? 0);
+      const unitCents = Math.round(price * 100);
+      return total + unitCents * line.quantity;
+    }, 0);
+  }
+
+  private buildOrderItemsFromCart(
+    cartItems: Awaited<ReturnType<CartService['getCartForUser']>>,
+  ) {
+    return cartItems.map((line) => ({
+      menuItemId: line.menuItemId,
+      name: line.menuItem.name,
+      unitPriceCents: line.isFreeDrink ? 0 : Math.round(Number(line.menuItem.price ?? 0) * 100),
+      quantity: line.quantity,
+      milkOption: line.menuItem.category === 'COFFEE' ? line.milkOption : null,
+      espressoShots: line.menuItem.category === 'COFFEE' ? line.espressoShots : null,
+      flavorName: line.menuItem.category === 'COFFEE' ? line.flavorName : null,
+      flavorPumps: line.menuItem.category === 'COFFEE' ? line.flavorPumps : null,
+      isFreeDrink: line.isFreeDrink,
+    }));
+  }
+
+  private countFreeDrinks(cartItems: Awaited<ReturnType<CartService['getCartForUser']>>) {
+    return cartItems.reduce((total, line) => {
+      if (!line.isFreeDrink) {
+        return total;
+      }
+      return total + line.quantity;
+    }, 0);
   }
 }

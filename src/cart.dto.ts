@@ -1,5 +1,5 @@
 import { MilkOption } from '@prisma/client';
-import { IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class AddCartItemDto {
   @IsInt()
@@ -36,4 +36,9 @@ export class UpdateCartItemDto {
   @IsInt()
   @Min(0)
   quantity: number;
+}
+
+export class ToggleFreeDrinkDto {
+  @IsBoolean()
+  isFreeDrink!: boolean;
 }

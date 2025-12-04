@@ -12,7 +12,7 @@ import {
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { CartService } from './cart.service';
 import { User } from './auth/decorator/user.decorator';
-import { AddCartItemDto, UpdateCartItemDto } from './cart.dto';
+import { AddCartItemDto, ToggleFreeDrinkDto, UpdateCartItemDto } from './cart.dto';
 
 interface AuthenticatedUser {
   id: number;
@@ -51,5 +51,14 @@ export class CartController {
   @Delete()
   clearCart(@User() user: AuthenticatedUser) {
     return this.cartService.clearCart(user.id);
+  }
+
+  @Patch('items/:cartItemId/free-drink')
+  toggleFreeDrink(
+    @User() user: AuthenticatedUser,
+    @Param('cartItemId', ParseIntPipe) cartItemId: number,
+    @Body() dto: ToggleFreeDrinkDto,
+  ) {
+    return this.cartService.toggleFreeDrink(user.id, cartItemId, dto);
   }
 }
