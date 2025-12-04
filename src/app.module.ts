@@ -8,9 +8,10 @@ import { ProfileModule } from './profile/profile.module';
 import { MenuModule } from './menu.module';
 import { CartModule } from './cart.module';
 import { RewardsModule } from './rewards/rewards.module';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
-  imports: [PrismaModule, UserModule, AuthModule, ProfileModule, MenuModule, CartModule, RewardsModule],
+  imports: [PrismaModule, UserModule, AuthModule, ProfileModule, MenuModule, CartModule, RewardsModule, PaymentsModule],
   controllers: [AppController],
   providers: [AppService],
 })
