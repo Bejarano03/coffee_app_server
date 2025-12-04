@@ -1,14 +1,11 @@
 import { Type } from 'class-transformer';
-import { IsNotEmpty, IsNumber, IsPositive, IsString, Max } from 'class-validator';
+import { IsNumber, IsPositive, Max } from 'class-validator';
 
-export class RefillGiftCardDto {
+export class CreateGiftCardReloadIntentDto {
   @Type(() => Number)
   @IsNumber()
   @IsPositive()
   @Max(100, { message: 'Single reloads are limited to $100.' })
   amount!: number;
-
-  @IsString()
-  @IsNotEmpty()
-  paymentIntentId!: string;
 }
+

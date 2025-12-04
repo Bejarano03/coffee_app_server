@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { GiftCardTransactionType, Prisma, RewardTransactionType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RefillGiftCardDto } from './dto/reward.dto';
+import Stripe from 'stripe';
 
 const MAX_RECENT_TRANSACTIONS = 5;
 const POINTS_PER_RELOAD_DOLLAR = 2;
@@ -9,7 +10,21 @@ export const FREE_DRINK_THRESHOLD = 12;
 
 @Injectable()
 export class RewardsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(RewardsService.name);
+  private readonly stripe: Stripe | null;
+
+  constructor(private readonly prisma: PrismaService) {
+    const apiKey = process.env.STRIPE_SECRET_KEY;
+    if (!apiKey) {
+      this.logger.warn('STRIPE_SECRET_KEY env var is not set. Gift card reloads will be disabled.');
+      this.stripe = null;
+      return;
+    }
+
+    this.stripe = new Stripe(apiKey, {
+      apiVersion: '2024-06-20' as Stripe.LatestApiVersion,
+    });
+  }
 
   async getRewardSummary(userId: number) {
     const user = await this.prisma.user.findUnique({
@@ -71,8 +86,32 @@ export class RewardsService {
   }
 
   async refillGiftCard(userId: number, dto: RefillGiftCardDto) {
-    const amountDecimal = new Prisma.Decimal(dto.amount.toFixed(2));
-    const pointsEarned = Math.floor(dto.amount * POINTS_PER_RELOAD_DOLLAR);
+    const requestedAmountCents = Math.round(dto.amount * 100);
+    if (requestedAmountCents <= 0) {
+      throw new BadRequestException('Reload amount must be greater than zero.');
+    }
+
+    const reloadNote = this.buildReloadNote(dto.paymentIntentId);
+    const existingReload = await this.prisma.giftCardTransaction.findFirst({
+      where: {
+        userId,
+        note: reloadNote,
+      },
+    });
+
+    if (existingReload) {
+      throw new BadRequestException('This reload has already been processed.');
+    }
+
+    const intent = await this.verifyGiftCardPayment(userId, dto.paymentIntentId, requestedAmountCents);
+    const settledCents = intent.amount_received ?? intent.amount ?? 0;
+    if (settledCents <= 0) {
+      throw new BadRequestException('Stripe did not report a valid reload amount.');
+    }
+
+    const amountDecimal = new Prisma.Decimal((settledCents / 100).toFixed(2));
+    const dollars = settledCents / 100;
+    const pointsEarned = Math.floor(dollars * POINTS_PER_RELOAD_DOLLAR);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.user.update({
@@ -87,7 +126,7 @@ export class RewardsService {
           userId,
           amount: amountDecimal,
           type: GiftCardTransactionType.REFILL,
-          note: 'Reloaded via mock Stripe checkout',
+          note: reloadNote,
         },
       });
 
@@ -177,5 +216,56 @@ export class RewardsService {
         },
       });
     }
+  }
+
+  private assertStripe(): Stripe {
+    if (!this.stripe) {
+      throw new InternalServerErrorException('Stripe is not configured on the server.');
+    }
+
+    return this.stripe;
+  }
+
+  private buildReloadNote(paymentIntentId: string) {
+    return `Stripe reload ${paymentIntentId}`;
+  }
+
+  private async verifyGiftCardPayment(
+    userId: number,
+    paymentIntentId: string,
+    requestedAmountCents: number,
+  ) {
+    const stripe = this.assertStripe();
+    let intent: Stripe.PaymentIntent;
+
+    try {
+      intent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    } catch (error) {
+      this.logger.error(`Failed to retrieve payment intent ${paymentIntentId}: ${error.message}`);
+      throw new BadRequestException('Unable to verify Stripe payment. Please try again.');
+    }
+
+    if ((intent.metadata?.purpose ?? '') !== 'gift_card_reload') {
+      throw new BadRequestException('Payment intent is not a gift card reload.');
+    }
+
+    if ((intent.metadata?.userId ?? '') !== userId.toString()) {
+      throw new BadRequestException('Payment intent does not belong to this user.');
+    }
+
+    if (intent.status !== 'succeeded') {
+      throw new BadRequestException('Stripe payment has not completed yet.');
+    }
+
+    const settledCents = intent.amount_received ?? intent.amount ?? 0;
+    if (settledCents !== requestedAmountCents) {
+      throw new BadRequestException('Stripe payment amount does not match the requested reload.');
+    }
+
+    if ((intent.currency ?? '').toLowerCase() !== 'usd') {
+      throw new BadRequestException('Unsupported currency for gift card reload.');
+    }
+
+    return intent;
   }
 }

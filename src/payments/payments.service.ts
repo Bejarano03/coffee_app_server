@@ -70,6 +70,41 @@ export class PaymentsService {
     }
   }
 
+  async createGiftCardReloadIntent(userId: number, amountDollars: number) {
+    const stripe = this.assertStripe();
+    const amountCents = Math.round(amountDollars * 100);
+
+    if (amountCents <= 0) {
+      throw new BadRequestException('Reload amount must be greater than zero.');
+    }
+
+    try {
+      const intent = await stripe.paymentIntents.create({
+        amount: amountCents,
+        currency: 'usd',
+        automatic_payment_methods: { enabled: true },
+        metadata: {
+          userId: userId.toString(),
+          purpose: 'gift_card_reload',
+        },
+      });
+
+      if (!intent.client_secret) {
+        throw new InternalServerErrorException('Failed to create payment intent.');
+      }
+
+      return {
+        clientSecret: intent.client_secret,
+        paymentIntentId: intent.id,
+        amountCents,
+        currency: intent.currency,
+      };
+    } catch (error) {
+      this.logger.error(`Stripe gift card reload intent failed: ${error.message}`);
+      throw new InternalServerErrorException('Unable to start reload. Please try again.');
+    }
+  }
+
   private assertStripe(): Stripe {
     if (!this.stripe) {
       throw new InternalServerErrorException('Stripe is not configured on the server.');
