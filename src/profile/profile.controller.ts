@@ -1,6 +1,7 @@
 import { Controller, Get, Patch, Body, UseGuards, HttpException, HttpStatus } from '@nestjs/common';
 import { ProfileService } from './profile.service';
 import { UpdateProfileDto } from './dto/profile.dto'; 
+import { UpdatePasswordDto } from './dto/change-password.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'; 
 import { User } from '../auth/decorator/user.decorator'; 
 
@@ -48,5 +49,19 @@ export class ProfileController {
     }
     
     return this.profileService.updateProfile(userId, updateProfileDto);
+  }
+
+  @Patch('password')
+  async updatePassword(
+    @User() user: FullUserProfilePayload,
+    @Body() updatePasswordDto: UpdatePasswordDto,
+  ) {
+    const userId = user.id;
+
+    if (!userId) {
+      throw new HttpException('Authentication payload missing user ID.', HttpStatus.UNAUTHORIZED);
+    }
+
+    return this.profileService.updatePassword(userId, updatePasswordDto);
   }
 }

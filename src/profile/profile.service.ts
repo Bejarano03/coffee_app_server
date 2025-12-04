@@ -1,11 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateProfileDto } from './dto/profile.dto';
+import { UpdatePasswordDto } from './dto/change-password.dto';
 import { formatBirthDateForClient, parseBirthDateInput, requireTenDigitPhone } from '../utils/formatters';
 
 @Injectable()
 export class ProfileService {
   constructor(private prisma: PrismaService) {}
+  private readonly HASH_SALT_ROUNDS = 10;
 
   // Handles fetching the profile for the authenticated user ID
   async getProfile(userId: number) {
@@ -62,5 +65,58 @@ export class ProfileService {
       ...updatedUser,
       birthDate: formatBirthDateForClient(updatedUser.birthDate),
     };
+  }
+
+  async updatePassword(userId: number, data: UpdatePasswordDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        password: true,
+        temporaryPasswordHash: true,
+        temporaryPasswordExpiresAt: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User with ID ${userId} not found.`);
+    }
+
+    const now = new Date();
+    const matchesCurrent = await bcrypt.compare(data.currentPassword, user.password);
+    let matchesTemporary = false;
+
+    if (!matchesCurrent) {
+      const temporaryPasswordIsActive =
+        !!user.temporaryPasswordHash &&
+        !!user.temporaryPasswordExpiresAt &&
+        user.temporaryPasswordExpiresAt > now;
+
+      if (temporaryPasswordIsActive) {
+        matchesTemporary = await bcrypt.compare(data.currentPassword, user.temporaryPasswordHash as string);
+      }
+
+      if (!matchesTemporary) {
+        throw new BadRequestException('Current password is incorrect.');
+      }
+    }
+
+    const isSamePassword = await bcrypt.compare(data.newPassword, user.password);
+    if (isSamePassword) {
+      throw new BadRequestException('New password must be different from the current password.');
+    }
+
+    const hashedPassword = await bcrypt.hash(data.newPassword, this.HASH_SALT_ROUNDS);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        password: hashedPassword,
+        temporaryPasswordHash: null,
+        temporaryPasswordExpiresAt: null,
+        mustResetPassword: false,
+      },
+    });
+
+    return { message: 'Password updated successfully.' };
   }
 }
