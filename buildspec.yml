@@ -20,7 +20,8 @@ phases:
       - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $REPOSITORY_URI
       - npm ci
       - echo "Running Prisma generate..."
-      - npx prisma generate
+      - PLACEHOLDER_DB_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"
+      - DATABASE_URL=${DATABASE_URL:-$PLACEHOLDER_DB_URL} npx prisma generate
       - |
         if [ -n "$DATABASE_URL" ]; then
           echo "Applying Prisma migrations..."
