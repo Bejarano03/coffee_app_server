@@ -1,0 +1,89 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Update the Coffee App Lambda function to a new container image without rebuilding infrastructure.
+
+Parameters:
+  FunctionName:
+    Type: String
+    Description: Existing Lambda function name to update.
+  ImageUri:
+    Type: String
+    Description: Fully qualified ECR image URI with tag (e.g., 123456789012.dkr.ecr.us-west-2.amazonaws.com/app:abcd123).
+  ExecutionRoleArn:
+    Type: String
+    Description: IAM role ARN already attached to the Lambda function.
+  Architectures:
+    Type: String
+    AllowedValues:
+      - arm64
+      - x86_64
+    Default: arm64
+    Description: CPU architecture for the container image.
+  MemorySize:
+    Type: Number
+    Default: 1024
+    MinValue: 128
+    MaxValue: 10240
+    Description: Lambda memory in MB.
+  TimeoutSeconds:
+    Type: Number
+    Default: 30
+    MinValue: 1
+    MaxValue: 900
+    Description: Lambda timeout in seconds.
+  ReservedConcurrentExecutions:
+    Type: Number
+    Default: -1
+    MinValue: -1
+    Description: Set to -1 for unlimited, otherwise provide a positive number.
+  EnvironmentVariables:
+    Type: Json
+    Default: {}
+    Description: Key/value map of environment variables (JSON object).
+  VpcSubnetIds:
+    Type: String
+    Default: ''
+    Description: Comma-separated list of subnet IDs for VPC access (leave blank to skip VPC config).
+  VpcSecurityGroupIds:
+    Type: String
+    Default: ''
+    Description: Comma-separated list of security group IDs for VPC access (leave blank to skip VPC config).
+  Description:
+    Type: String
+    Default: Coffee app container Lambda
+    Description: Function description.
+
+Conditions:
+  HasVpcConfig: !And
+    - !Not [!Equals [!Ref VpcSubnetIds, '']]
+    - !Not [!Equals [!Ref VpcSecurityGroupIds, '']]
+
+Resources:
+  CoffeeAppServerLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Ref FunctionName
+      PackageType: Image
+      Code:
+        ImageUri: !Ref ImageUri
+      Role: !Ref ExecutionRoleArn
+      Architectures:
+        - !Ref Architectures
+      MemorySize: !Ref MemorySize
+      Timeout: !Ref TimeoutSeconds
+      ReservedConcurrentExecutions: !Ref ReservedConcurrentExecutions
+      Description: !Ref Description
+      Environment:
+        Variables: !Ref EnvironmentVariables
+      VpcConfig: !If
+        - HasVpcConfig
+        - SecurityGroupIds: !Split [',', !Ref VpcSecurityGroupIds]
+          SubnetIds: !Split [',', !Ref VpcSubnetIds]
+        - !Ref AWS::NoValue
+
+Outputs:
+  FunctionArn:
+    Description: Updated Lambda function ARN.
+    Value: !GetAtt CoffeeAppServerLambda.Arn
+  ImageUriOutput:
+    Description: Image URI applied to the function.
+    Value: !Ref ImageUri
