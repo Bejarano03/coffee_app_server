@@ -10,7 +10,6 @@ RUN npm ci
 
 COPY nest-cli.json tsconfig*.json ./
 COPY prisma ./prisma
-COPY generated ./generated
 COPY src ./src
 
 ARG DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"
@@ -27,7 +26,6 @@ COPY --from=builder /var/task/node_modules ./node_modules
 COPY --from=builder /var/task/dist ./dist
 COPY --from=builder /var/task/package*.json ./
 COPY --from=builder /var/task/prisma ./prisma
-COPY --from=builder /var/task/generated ./generated
 
 ENV NODE_ENV=production
 
