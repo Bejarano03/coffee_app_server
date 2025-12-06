@@ -2,7 +2,7 @@ version: 0.2
 
 env:
   variables:
-    IMAGE_REPO_NAME: coffee-app-server
+    IMAGE_REPO_NAME: coffee_app_server
     IMAGE_TAG: latest
 
 phases:
