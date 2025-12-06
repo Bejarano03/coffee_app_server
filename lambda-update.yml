@@ -5,7 +5,7 @@ Parameters:
   FunctionName:
     Type: String
     Description: Existing Lambda function name to update.
-  ImageUri:
+  ImageUriParameter:
     Type: String
     Description: Fully qualified ECR image URI with tag (e.g., 123456789012.dkr.ecr.us-west-2.amazonaws.com/app:abcd123).
   ExecutionRoleArn:
@@ -64,7 +64,7 @@ Resources:
       FunctionName: !Ref FunctionName
       PackageType: Image
       Code:
-        ImageUri: !Ref ImageUri
+        ImageUri: !Ref ImageUriParameter
       Role: !Ref ExecutionRoleArn
       Architectures:
         - !Ref Architectures
@@ -86,4 +86,4 @@ Outputs:
     Value: !GetAtt CoffeeAppServerLambda.Arn
   ImageUriOutput:
     Description: Image URI applied to the function.
-    Value: !Ref ImageUri
+    Value: !Ref ImageUriParameter

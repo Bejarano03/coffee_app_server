@@ -43,3 +43,4 @@ artifacts:
   files:
     - imagedefinitions.json
     - lambda-update.yml
+    - template-config.js
