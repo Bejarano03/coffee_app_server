@@ -19,6 +19,15 @@ phases:
       - IMAGE_TAG=${IMAGE_TAG:-$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)}
       - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $REPOSITORY_URI
       - npm ci
+      - echo "Running Prisma generate..."
+      - npx prisma generate
+      - |
+        if [ -n "$DATABASE_URL" ]; then
+          echo "Applying Prisma migrations..."
+          npx prisma migrate deploy
+        else
+          echo "Skipping prisma migrate deploy because DATABASE_URL is not set."
+        fi
       - npm run build
   build:
     commands:
