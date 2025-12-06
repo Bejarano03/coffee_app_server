@@ -10,7 +10,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { JwtAuthGuard } from './auth/jwt-auth.guard';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { MenuService } from './menu.service';
 import { CreateMenuItemDto, UpdateMenuItemDto } from './menu.dto';
 import { normalizeMenuCategory } from './menu.constants';

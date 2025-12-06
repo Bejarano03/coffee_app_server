@@ -9,9 +9,9 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { JwtAuthGuard } from './auth/jwt-auth.guard';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CartService } from './cart.service';
-import { User } from './auth/decorator/user.decorator';
+import { User } from '../auth/decorator/user.decorator';
 import { AddCartItemDto, ToggleFreeDrinkDto, UpdateCartItemDto } from './cart.dto';
 
 interface AuthenticatedUser {

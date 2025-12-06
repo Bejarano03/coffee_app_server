@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { MenuCategory, MilkOption } from '@prisma/client';
-import { PrismaService } from './prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { AddCartItemDto, ToggleFreeDrinkDto, UpdateCartItemDto } from './cart.dto';
-import { RewardsService } from './rewards/rewards.service';
+import { RewardsService } from '../rewards/rewards.service';
 
 @Injectable()
 export class CartService {

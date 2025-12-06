@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import Stripe from 'stripe';
-import { CartService } from '../cart.service';
+import { CartService } from '../cart/cart.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { GiftCardTransactionType, OrderStatus, Prisma } from '@prisma/client';
 import { RewardsService } from '../rewards/rewards.service';
