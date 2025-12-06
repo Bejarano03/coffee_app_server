@@ -25,6 +25,24 @@
 
 [Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
 
+## Coffee Companion (MCP Assistant)
+
+The Coffee Companion MCP agent powers the in-app chatbot. It is exposed via:
+
+- `POST /assistant/message` (JWT protected): accepts `{ message: string, history?: { role: 'user' | 'assistant'; content: string }[], weather?: { description: string; temperature: number; feelsLike: number; units: 'metric' | 'imperial'; locationName?: string } }` and returns the model's reply plus guardrail metadata.
+
+### Environment variables
+
+Add the following to your server `.env` file:
+
+| Variable | Required | Description |
+| --- | --- | --- |
+| `OPENAI_API_KEY` | ✅ | API key used to call the OpenAI Responses API. |
+| `OPENAI_ASSISTANT_MODEL` | optional | Model name (defaults to `gpt-4o-mini`). |
+| `COFFEE_APP_SUPPORT_EMAIL` | optional | Email shown when the assistant escalates (defaults to `support@coffeeapp.example`). |
+
+The assistant automatically injects menu data, a snapshot of the user's recent orders, FAQ entries, and (optionally) a weather snapshot provided by the client. Guard rails prevent offering free drinks, discounts, or handling transactions and instruct the user to email support when needed.
+
 ## Project setup
 
 ```bash
