@@ -1,6 +1,46 @@
 [
   {
+    "ParameterKey": "FunctionName",
+    "ParameterValue": "coffee_app_server_lambda"
+  },
+  {
+    "ParameterKey": "ExecutionRoleArn",
+    "ParameterValue": "arn:aws:iam::573576814499:role/coffee_app_server_lambda-role-p7q4maho"
+  },
+  {
     "ParameterKey": "ImageUriParameter",
     "ParameterValue": "#{BuildArtifact.ImageUri}"
+  },
+  {
+    "ParameterKey": "Architectures",
+    "ParameterValue": "arm64"
+  },
+  {
+    "ParameterKey": "MemorySize",
+    "ParameterValue": "1024"
+  },
+  {
+    "ParameterKey": "TimeoutSeconds",
+    "ParameterValue": "30"
+  },
+  {
+    "ParameterKey": "ReservedConcurrentExecutions",
+    "ParameterValue": "-1"
+  },
+  {
+    "ParameterKey": "EnvironmentVariables",
+    "ParameterValue": "{}"
+  },
+  {
+    "ParameterKey": "VpcSubnetIds",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "VpcSecurityGroupIds",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "Description",
+    "ParameterValue": "Coffee app container Lambda"
   }
 ]
