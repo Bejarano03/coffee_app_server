@@ -4,6 +4,7 @@ env:
   variables:
     IMAGE_REPO_NAME: coffee_app_server
     IMAGE_TAG: latest
+    LAMBDA_FUNCTION_NAME: ""
 
 phases:
   install:
@@ -39,8 +40,15 @@ phases:
       - echo "Pushing the Docker image to ECR..."
       - docker push $REPOSITORY_URI:$IMAGE_TAG
       - printf '[{"name":"%s","imageUri":"%s"}]' "$IMAGE_REPO_NAME" "$REPOSITORY_URI:$IMAGE_TAG" > imagedefinitions.json
+      - |
+        if [ -n "$LAMBDA_FUNCTION_NAME" ]; then
+          echo "Updating Lambda function $LAMBDA_FUNCTION_NAME with image $REPOSITORY_URI:$IMAGE_TAG ..."
+          aws lambda update-function-code \
+            --function-name "$LAMBDA_FUNCTION_NAME" \
+            --image-uri "$REPOSITORY_URI:$IMAGE_TAG"
+        else
+          echo "LAMBDA_FUNCTION_NAME not set; skipping Lambda update."
+        fi
 artifacts:
   files:
     - imagedefinitions.json
-    - lambda-update.yml
-    - template-config.json
